@@ -104,7 +104,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
       title: req.body.title,
       content: req.body.content,
       category: req.body.category || 'geral',
-      imageUrl: req.file ? `/uploads/news/${req.file.filename}` : null,
+      imageUrl: req.file ? `/news/${req.file.filename}` : null,
       videoUrl: req.body.videoUrl || null, // Novo campo
       author: req.userId
     });
@@ -162,7 +162,7 @@ router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
     };
 
     if (req.file) {
-      updateData.imageUrl = `/uploads/news/${req.file.filename}`;
+      updateData.imageUrl = `/news/${req.file.filename}`;
       if (existingNews.imageUrl) {
         const oldImagePath = path.join(__dirname, '../uploads/news', path.basename(existingNews.imageUrl));
         fs.unlink(oldImagePath, (err) => {
