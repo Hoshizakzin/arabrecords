@@ -77,9 +77,9 @@ router.post('/',
         title,
         artist: artist || 'Artista Desconhecido',
         category: category || 'music',
-        url: `/media/files/${req.files.file[0].filename}`,
+        url: `/uploads/media/files/${req.files.file[0].filename}`,
         thumbnailUrl: req.files.thumbnail
-          ? `/media/thumbnails/${req.files.thumbnail[0].filename}`
+          ? `/uploads/media/thumbnails/${req.files.thumbnail[0].filename}`
           : null,
         duration: duration || 0,
         uploadedBy: req.userId
@@ -131,14 +131,14 @@ router.put('/:id',
 
       // Atualiza mídia principal
       if (req.files?.file) {
-        updateData.url = `/media/files/${req.files.file[0].filename}`;
+        updateData.url = `/uploads/media/files/${req.files.file[0].filename}`;
         const oldFilePath = path.resolve('uploads/media/files', path.basename(existingMedia.url));
         await deleteFile(oldFilePath);
       }
 
       // Atualiza thumbnail
       if (req.files?.thumbnail) {
-        updateData.thumbnailUrl = `/media/thumbnails/${req.files.thumbnail[0].filename}`;
+        updateData.thumbnailUrl = `/uploads/media/thumbnails/${req.files.thumbnail[0].filename}`;
         if (existingMedia.thumbnailUrl) {
           const oldThumbPath = path.resolve('uploads/media/thumbnails', path.basename(existingMedia.thumbnailUrl));
           await deleteFile(oldThumbPath);

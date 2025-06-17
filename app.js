@@ -41,8 +41,8 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admins', require('./routes/adminRoutes'));
 
 // Arquivos estáticos
-app.use('/news', express.static(path.join(__dirname, 'uploads/news')));
-app.use('/media', express.static(path.join(__dirname, 'uploads/media')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // Rota de verificação de status
 app.get('/health', (req, res) => {
