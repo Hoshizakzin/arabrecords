@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const News = require('../models/News');
-const { authMiddleware } = require('../utils/auth');
+const authMiddleware = require('../utils/auth');
 
 // Configuração do Multer
 const storage = multer.diskStorage({

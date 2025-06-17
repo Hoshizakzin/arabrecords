@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const Media = require('../models/Media');
-const { authMiddleware } = require('../utils/auth');
+const authMiddleware = require('../utils/auth');
 
 // Helper para deletar arquivos com promessa
 const deleteFile = (filepath) => {
@@ -39,10 +39,18 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     if (file.fieldname === 'thumbnail') {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      cb(null, allowedTypes.includes(file.mimetype));
+      if (!allowedTypes.includes(file.mimetype)) {
+        cb(new Error('Tipo de arquivo inválido'), false);
+      } else {
+        cb(null, true);
+      }
     } else {
       const allowedTypes = ['audio/mpeg']; // <-- Apenas arquivos MP3 permitidos
-      cb(null, allowedTypes.includes(file.mimetype));
+      if (!allowedTypes.includes(file.mimetype)) {
+        cb(new Error('Tipo de arquivo inválido'), false);
+      } else {
+        cb(null, true);
+      }
     }
   },
   limits: {
