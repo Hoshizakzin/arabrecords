@@ -47,7 +47,19 @@ app.use((req, res, next) => {
   next();
 });
 
-app.options('*', cors());
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || origin.includes('vercel.app') || origin.includes('localhost')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Não autorizado por CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+};
+
+app.use(cors(corsOptions));
 
 // Rotas principais
 app.use('/api/news', require('./routes/newsRoutes'));
