@@ -47,6 +47,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.options('*', cors());
+
 // Rotas principais
 app.use('/api/news', require('./routes/newsRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));

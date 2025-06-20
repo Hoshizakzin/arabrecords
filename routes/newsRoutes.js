@@ -6,6 +6,11 @@ const fs = require('fs');
 const News = require('../models/News');
 const authMiddleware = require('../utils/auth');
 
+router.use((req, res, next) => {
+  console.log(`➡️ ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // Configuração do Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
