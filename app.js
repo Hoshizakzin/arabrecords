@@ -6,14 +6,8 @@ require('dotenv').config();
 
 const app = express();
 
-// Origem permitida: frontend local e produção (Vercel)
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://arabian-blog.vercel.app'
-];
-
-// Middleware de CORS
-app.use(cors({
+// CORS unificado
+const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || origin.includes('vercel.app') || origin.includes('localhost')) {
       callback(null, true);
@@ -21,8 +15,13 @@ app.use(cors({
       callback(new Error('Não autorizado por CORS'));
     }
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Habilita pré-flight para todas as rotas
 
 // Middlewares básicos
 app.use(express.json({ limit: '50mb' }));
@@ -47,32 +46,18 @@ app.use((req, res, next) => {
   next();
 });
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || origin.includes('vercel.app') || origin.includes('localhost')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Não autorizado por CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-};
-
-app.use(cors(corsOptions));
-
 // Rotas principais
 app.use('/api/news', require('./routes/newsRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admins', require('./routes/adminRoutes'));
 
-// Arquivos estáticos com CORS habilitado
-app.use('/news', cors(), express.static(path.join(__dirname, 'uploads/news')));
-app.use('/media/files', cors(), express.static(path.join(__dirname, 'uploads/media/files')));
-app.use('/media/thumbnails', cors(), express.static(path.join(__dirname, 'uploads/media/thumbnails')));
+// Arquivos estáticos
+app.use('/news', express.static(path.join(__dirname, 'uploads/news')));
+app.use('/media/files', express.static(path.join(__dirname, 'uploads/media/files')));
+app.use('/media/thumbnails', express.static(path.join(__dirname, 'uploads/media/thumbnails')));
 
-// Health check (útil para o Render)
+// Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok',
