@@ -6,7 +6,7 @@ const fs = require('fs');
 const Media = require('../models/Media');
 const authMiddleware = require('../utils/auth');
 
-// Helper para deletar arquivos com promessa
+// Helper para deletar arquivos
 const deleteFile = (filepath) => {
   return new Promise((resolve) => {
     fs.unlink(filepath, (err) => {
@@ -16,17 +16,16 @@ const deleteFile = (filepath) => {
   });
 };
 
+// 📁 Novo caminho para armazenar todas as mídias (juntas com imagens de notícias)
+const UPLOAD_DIR = 'uploads/news/';
+
 // Configuração do Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = file.fieldname === 'thumbnail'
-      ? 'uploads/media/thumbnails'
-      : 'uploads/media/files';
-
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
     }
-    cb(null, uploadDir);
+    cb(null, UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -37,20 +36,12 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
+    const imageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const audioTypes = ['audio/mpeg'];
     if (file.fieldname === 'thumbnail') {
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!allowedTypes.includes(file.mimetype)) {
-        cb(new Error('Tipo de arquivo inválido'), false);
-      } else {
-        cb(null, true);
-      }
+      cb(null, imageTypes.includes(file.mimetype));
     } else {
-      const allowedTypes = ['audio/mpeg']; // <-- Apenas arquivos MP3 permitidos
-      if (!allowedTypes.includes(file.mimetype)) {
-        cb(new Error('Tipo de arquivo inválido'), false);
-      } else {
-        cb(null, true);
-      }
+      cb(null, audioTypes.includes(file.mimetype));
     }
   },
   limits: {
@@ -59,7 +50,7 @@ const upload = multer({
   }
 });
 
-// Upload de mídia
+// 📥 Upload de mídia
 router.post('/',
   authMiddleware,
   upload.fields([
@@ -71,11 +62,9 @@ router.post('/',
       const { title, artist, category, duration } = req.body;
 
       if (!title || !req.files?.file) {
-        if (req.files) {
-          for (const files of Object.values(req.files)) {
-            for (const file of files) {
-              await deleteFile(file.path);
-            }
+        for (const files of Object.values(req.files || {})) {
+          for (const file of files) {
+            await deleteFile(file.path);
           }
         }
         return res.status(400).json({ error: 'Título e arquivo de mídia são obrigatórios' });
@@ -85,9 +74,9 @@ router.post('/',
         title,
         artist: artist || 'Artista Desconhecido',
         category: category || 'music',
-        url: `/media/files/${req.files.file[0].filename}`,
+        url: `/news/${req.files.file[0].filename}`,
         thumbnailUrl: req.files.thumbnail
-          ? `/media/thumbnails/${req.files.thumbnail[0].filename}`
+          ? `/news/${req.files.thumbnail[0].filename}`
           : null,
         duration: duration || 0,
         uploadedBy: req.userId
@@ -101,11 +90,9 @@ router.post('/',
       });
 
     } catch (err) {
-      if (req.files) {
-        for (const files of Object.values(req.files)) {
-          for (const file of files) {
-            await deleteFile(file.path);
-          }
+      for (const files of Object.values(req.files || {})) {
+        for (const file of files) {
+          await deleteFile(file.path);
         }
       }
       res.status(500).json({ error: err.message || 'Erro ao enviar mídia' });
@@ -113,7 +100,7 @@ router.post('/',
   }
 );
 
-// Atualização de mídia
+// ✏️ Atualização de mídia
 router.put('/:id',
   authMiddleware,
   upload.fields([
@@ -137,18 +124,18 @@ router.put('/:id',
         duration: duration || existingMedia.duration
       };
 
-      // Atualiza mídia principal
+      // Atualiza áudio
       if (req.files?.file) {
-        updateData.url = `/media/files/${req.files.file[0].filename}`;
-        const oldFilePath = path.resolve('uploads/media/files', path.basename(existingMedia.url));
+        updateData.url = `/news/${req.files.file[0].filename}`;
+        const oldFilePath = path.resolve('uploads/news', path.basename(existingMedia.url));
         await deleteFile(oldFilePath);
       }
 
       // Atualiza thumbnail
       if (req.files?.thumbnail) {
-        updateData.thumbnailUrl = `/media/thumbnails/${req.files.thumbnail[0].filename}`;
+        updateData.thumbnailUrl = `/news/${req.files.thumbnail[0].filename}`;
         if (existingMedia.thumbnailUrl) {
-          const oldThumbPath = path.resolve('uploads/media/thumbnails', path.basename(existingMedia.thumbnailUrl));
+          const oldThumbPath = path.resolve('uploads/news', path.basename(existingMedia.thumbnailUrl));
           await deleteFile(oldThumbPath);
         }
       }
@@ -161,11 +148,9 @@ router.put('/:id',
       });
 
     } catch (err) {
-      if (req.files) {
-        for (const files of Object.values(req.files)) {
-          for (const file of files) {
-            await deleteFile(file.path);
-          }
+      for (const files of Object.values(req.files || {})) {
+        for (const file of files) {
+          await deleteFile(file.path);
         }
       }
       res.status(500).json({ error: err.message || 'Erro ao atualizar mídia' });
@@ -173,7 +158,7 @@ router.put('/:id',
   }
 );
 
-// Deletar mídia
+// 🗑️ Deletar mídia
 router.delete('/:id',
   authMiddleware,
   async (req, res) => {
@@ -184,11 +169,11 @@ router.delete('/:id',
         return res.status(404).json({ error: 'Mídia não encontrada' });
       }
 
-      const filePath = path.resolve('uploads/media/files', path.basename(media.url));
+      const filePath = path.resolve('uploads/news', path.basename(media.url));
       await deleteFile(filePath);
 
       if (media.thumbnailUrl) {
-        const thumbPath = path.resolve('uploads/media/thumbnails', path.basename(media.thumbnailUrl));
+        const thumbPath = path.resolve('uploads/news', path.basename(media.thumbnailUrl));
         await deleteFile(thumbPath);
       }
 
@@ -200,7 +185,7 @@ router.delete('/:id',
   }
 );
 
-// Listar mídias
+// 📋 Listar mídias
 router.get('/', async (req, res) => {
   try {
     const media = await Media.find().sort({ createdAt: -1 });
@@ -210,7 +195,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Registrar e servir download
+// 📦 Download de mídia
 const sanitize = (str) => str.replace(/[<>:"/\\|?*]+/g, '');
 
 router.get('/download/:id', async (req, res) => {
@@ -220,19 +205,18 @@ router.get('/download/:id', async (req, res) => {
       return res.status(404).json({ error: 'Mídia não encontrada' });
     }
 
-    const filePath = path.resolve('uploads/media/files', path.basename(media.url));
+    const filePath = path.resolve('uploads/news', path.basename(media.url));
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Arquivo não encontrado no servidor' });
     }
 
-    // Incrementa contador de downloads
+    // Contador de downloads
     await Media.findByIdAndUpdate(media._id, { $inc: { downloads: 1 } });
 
-    // Gera nome amigável: Artista - Título.mp3
+    // Nome amigável
     const ext = path.extname(filePath);
     const niceName = `${sanitize(media.artist)} - ${sanitize(media.title)}${ext}`;
 
-    // Envia arquivo com o novo nome
     res.download(filePath, niceName);
   } catch (err) {
     console.error('Erro no download:', err);

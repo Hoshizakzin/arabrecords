@@ -69,7 +69,7 @@ app.use('/api/admins', require('./routes/adminRoutes'));
 
 // Arquivos estáticos com CORS habilitado
 app.use('/news', cors(), express.static(path.join(__dirname, 'uploads/news')));
-app.use('/media', cors(), express.static(path.join(__dirname, 'uploads/media')));
+//app.use('/media', cors(), express.static(path.join(__dirname, 'uploads/media')));
 
 // Health check (útil para o Render)
 app.get('/health', (req, res) => {
