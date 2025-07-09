@@ -9,6 +9,9 @@ cloudinary.config({
 });
 
 const uploadToCloudinary = (buffer, mimetype, folder) => {
+  if (!buffer || buffer.length === 0) {
+    throw new Error('Arquivo de imagem vazio ou inválido');
+  }
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {

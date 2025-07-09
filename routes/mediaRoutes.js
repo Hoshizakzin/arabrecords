@@ -10,7 +10,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    const imageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
     const audioTypes = ['audio/mpeg', 'audio/mp3'];
 
     if (file.fieldname === 'thumbnail' && imageTypes.includes(file.mimetype)) {
