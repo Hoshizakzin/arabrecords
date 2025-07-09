@@ -1,4 +1,5 @@
 const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
 require('dotenv').config();
 
 cloudinary.config({
@@ -7,19 +8,25 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const uploadToCloudinary = async (buffer, mimetype, folder) => {
-  return await cloudinary.uploader.upload_stream({
-    resource_type: mimetype.startsWith('audio/') ? 'video' : 'image',
-    folder
-  }, (error, result) => {
-    if (error) throw error;
-    return result;
-  }).end(buffer);
+const uploadToCloudinary = (buffer, mimetype, folder) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        folder
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    streamifier.createReadStream(buffer).pipe(stream);
+  });
 };
 
 const deleteFromCloudinary = async (publicId) => {
-  return await cloudinary.uploader.destroy(publicId, {
-    resource_type: 'video' // funciona tanto para imagem quanto vídeo
+  return cloudinary.uploader.destroy(publicId, {
+    resource_type: 'image'
   });
 };
 

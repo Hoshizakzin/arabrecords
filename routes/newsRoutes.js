@@ -1,239 +1,138 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const News = require('../models/News');
 const authMiddleware = require('../utils/auth');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
+// Multer com memória (para envio ao Cloudinary)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas imagens JPEG, PNG ou WebP são permitidas!'));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+// Logs de rota
 router.use((req, res, next) => {
   console.log(`➡️ ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Configuração do Multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/news/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage,
-  fileFilter: (req, file, cb) => {
-    console.log('📁 Arquivo recebido:', {
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size
-    });
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Apenas imagens JPEG, PNG ou WebP são permitidas!'), false);
-    }
-  },
-  limits: { fileSize: 10 * 1024 * 1024 }
-});
-
-// Rota para listar todas as notícias
+// GET todas as notícias
 router.get('/', async (req, res) => {
   try {
     const news = await News.find().sort({ createdAt: -1 }).populate('author', 'username');
-    res.json({
-      success: true,
-      count: news.length,
-      data: news
-    });
+    res.json({ success: true, count: news.length, data: news });
   } catch (error) {
     console.error('❌ Erro ao buscar notícias:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro ao buscar notícias'
-    });
+    res.status(500).json({ success: false, message: 'Erro ao buscar notícias' });
   }
 });
 
-// Rota para obter uma notícia específica
+// GET uma notícia
 router.get('/:id', async (req, res) => {
   try {
     const newsItem = await News.findById(req.params.id).populate('author', 'username');
-    
     if (!newsItem) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notícia não encontrada'
-      });
+      return res.status(404).json({ success: false, message: 'Notícia não encontrada' });
     }
-
-    res.json({
-      success: true,
-      data: newsItem
-    });
+    res.json({ success: true, data: newsItem });
   } catch (error) {
     console.error('❌ Erro ao buscar notícia:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro ao buscar notícia'
-    });
+    res.status(500).json({ success: false, message: 'Erro ao buscar notícia' });
   }
 });
 
-// Rota para criar nova notícia
+// POST criar notícia
 router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
-  console.log('📦 Dados recebidos na requisição:', {
+  console.log('📦 Dados recebidos:', {
     body: req.body,
-    file: req.file ? {
-      filename: req.file.filename,
-      path: req.file.path,
-      size: req.file.size
-    } : null,
-    userId: req.userId,
-    headers: req.headers
+    hasFile: !!req.file,
+    userId: req.userId
   });
 
   try {
-    if (!req.body.title || !req.body.content) {
-      throw new Error('Título e conteúdo são obrigatórios');
+    const { title, content, category, videoUrl } = req.body;
+    if (!title || !content) throw new Error('Título e conteúdo são obrigatórios');
+
+    let uploadedImage = null;
+    if (req.file) {
+      uploadedImage = await uploadToCloudinary(req.file.buffer, req.file.mimetype, 'news_images');
+      console.log('✅ Imagem enviada para Cloudinary:', uploadedImage.secure_url);
     }
 
     const newNews = new News({
-      title: req.body.title,
-      content: req.body.content,
-      category: req.body.category || 'geral',
-      imageUrl: req.file ? `/news/${req.file.filename}` : null,
-      videoUrl: req.body.videoUrl || null, // Novo campo
+      title,
+      content,
+      category: category || 'geral',
+      videoUrl: videoUrl || null,
+      imageUrl: uploadedImage?.secure_url || null,
+      imageCloudinaryId: uploadedImage?.public_id || null,
       author: req.userId
     });
 
-    const savedNews = await newNews.save();
-    
-    res.status(201).json({
-      success: true,
-      message: 'Notícia publicada com sucesso!',
-      data: savedNews
-    });
-
+    const saved = await newNews.save();
+    res.status(201).json({ success: true, message: 'Notícia publicada com sucesso!', data: saved });
   } catch (error) {
     console.error('❌ Erro ao publicar notícia:', error);
-    
-    if (req.file) {
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error('❌ Erro ao remover arquivo temporário:', err);
-      });
-    }
-
-    res.status(400).json({
-      success: false,
-      message: error.message || 'Erro ao processar a notícia'
-    });
+    res.status(400).json({ success: false, message: error.message });
   }
 });
 
-// Rota para atualizar notícia
+// PUT atualizar notícia
 router.put('/:id', authMiddleware, upload.single('image'), async (req, res) => {
   try {
     const { title, content, category, videoUrl } = req.body;
-    const newsId = req.params.id;
-
-    const existingNews = await News.findById(newsId);
-    if (!existingNews) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notícia não encontrada'
-      });
+    const news = await News.findById(req.params.id);
+    if (!news) return res.status(404).json({ success: false, message: 'Notícia não encontrada' });
+    if (news.author.toString() !== req.userId) {
+      return res.status(403).json({ success: false, message: 'Permissão negada' });
     }
-
-    if (existingNews.author.toString() !== req.userId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Você não tem permissão para editar esta notícia'
-      });
-    }
-
-    const updateData = {
-      title: title || existingNews.title,
-      content: content || existingNews.content,
-      category: category || existingNews.category,
-      videoUrl: videoUrl !== undefined ? videoUrl : existingNews.videoUrl
-    };
 
     if (req.file) {
-      updateData.imageUrl = `/news/${req.file.filename}`;
-      if (existingNews.imageUrl) {
-        const oldImagePath = path.join(__dirname, '../uploads/news', path.basename(existingNews.imageUrl));
-        fs.unlink(oldImagePath, (err) => {
-          if (err) console.error('Erro ao remover imagem antiga:', err);
-        });
-      }
+      if (news.imageCloudinaryId) await deleteFromCloudinary(news.imageCloudinaryId);
+      const uploaded = await uploadToCloudinary(req.file.buffer, req.file.mimetype, 'news_images');
+      news.imageUrl = uploaded.secure_url;
+      news.imageCloudinaryId = uploaded.public_id;
     }
 
-    const updatedNews = await News.findByIdAndUpdate(newsId, updateData, { new: true });
+    news.title = title || news.title;
+    news.content = content || news.content;
+    news.category = category || news.category;
+    news.videoUrl = videoUrl !== undefined ? videoUrl : news.videoUrl;
 
-    res.json({
-      success: true,
-      message: 'Notícia atualizada com sucesso!',
-      data: updatedNews
-    });
-
+    const updated = await news.save();
+    res.json({ success: true, message: 'Notícia atualizada com sucesso!', data: updated });
   } catch (error) {
     console.error('❌ Erro ao atualizar notícia:', error);
-    
-    if (req.file) {
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error('❌ Erro ao remover arquivo temporário:', err);
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Erro ao atualizar notícia'
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Rota para deletar notícia
-// Rota para deletar notícia
+// DELETE notícia
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const newsId = req.params.id;
-    const newsItem = await News.findById(newsId);
+    const news = await News.findById(req.params.id);
+    if (!news) return res.status(404).json({ success: false, message: 'Notícia não encontrada' });
 
-    if (!newsItem) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notícia não encontrada'
-      });
+    if (news.imageCloudinaryId) {
+      await deleteFromCloudinary(news.imageCloudinaryId);
+      console.log('🗑️ Imagem removida do Cloudinary');
     }
 
-    if (newsItem.imageUrl) {
-      const imagePath = path.join(__dirname, '../uploads/news', path.basename(newsItem.imageUrl));
-      fs.unlink(imagePath, (err) => {
-        if (err) console.error('Erro ao remover imagem:', err);
-      });
-    }
-
-    await News.findByIdAndDelete(newsId);
-
-    res.json({
-      success: true,
-      message: 'Notícia removida com sucesso!'
-    });
-
+    await News.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Notícia removida com sucesso!' });
   } catch (error) {
     console.error('❌ Erro ao remover notícia:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro ao remover notícia'
-    });
+    res.status(500).json({ success: false, message: 'Erro ao remover notícia' });
   }
 });
 
