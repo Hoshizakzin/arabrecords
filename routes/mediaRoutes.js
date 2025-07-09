@@ -5,7 +5,6 @@ const Media = require('../models/Media');
 const authMiddleware = require('../utils/auth');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
-// 🧠 Armazenamento em memória (buffer)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
@@ -22,12 +21,11 @@ const upload = multer({
     }
   },
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB
+    fileSize: 100 * 1024 * 1024,
     files: 2
   }
 });
 
-// 📥 Upload de mídia
 router.post('/',
   authMiddleware,
   upload.fields([
@@ -42,13 +40,8 @@ router.post('/',
 
     try {
       const { title, artist, category, duration } = req.body;
-      const file = req.files?.file?.[0] || req.files?.mediaFile?.[0];
+      const file = req.files?.file?.[0];
       const thumbnail = req.files?.thumbnail?.[0];
-
-      if (thumbnail && !thumbnail.mimetype.startsWith('image/')) {
-        return res.status(400).json({ error: 'Arquivo de imagem inválido' });
-      }
-
 
       if (!title || !file) {
         return res.status(400).json({ error: 'Título e arquivo de mídia são obrigatórios' });
@@ -56,10 +49,22 @@ router.post('/',
 
       console.log('🧪 MIME do arquivo:', file.mimetype);
       console.log('🧪 Tamanho do buffer:', file.buffer?.length);
+
       const uploadedFile = await uploadToCloudinary(file.buffer, file.mimetype, 'media_files');
-      const uploadedThumb = thumbnail
-        ? await uploadToCloudinary(thumbnail.buffer, thumbnail.mimetype, 'media_thumbnails')
-        : null;
+
+      let uploadedThumb = null;
+      if (thumbnail) {
+        if (!thumbnail.buffer || !thumbnail.mimetype.startsWith('image/')) {
+          return res.status(400).json({ error: 'Arquivo de imagem inválido' });
+        }
+
+        console.log('🖼️ Enviando thumbnail:', {
+          mimetype: thumbnail.mimetype,
+          size: thumbnail.buffer?.length
+        });
+
+        uploadedThumb = await uploadToCloudinary(thumbnail.buffer, thumbnail.mimetype, 'media_thumbnails');
+      }
 
       const newMedia = new Media({
         title,
@@ -91,7 +96,6 @@ router.post('/',
   }
 );
 
-// ✏️ Atualização de mídia
 router.put('/:id',
   authMiddleware,
   upload.fields([
@@ -109,7 +113,6 @@ router.put('/:id',
       const media = await Media.findById(req.params.id);
       if (!media) return res.status(404).json({ error: 'Mídia não encontrada' });
 
-      // Substitui o áudio
       if (file) {
         if (media.cloudinaryId) await deleteFromCloudinary(media.cloudinaryId);
         const uploaded = await uploadToCloudinary(file.buffer, file.mimetype, 'media_files');
@@ -117,8 +120,11 @@ router.put('/:id',
         media.cloudinaryId = uploaded.public_id;
       }
 
-      // Substitui a thumbnail
       if (thumbnail) {
+        if (!thumbnail.buffer || !thumbnail.mimetype.startsWith('image/')) {
+          return res.status(400).json({ error: 'Arquivo de imagem inválido' });
+        }
+
         if (media.thumbnailCloudinaryId) await deleteFromCloudinary(media.thumbnailCloudinaryId);
         const uploadedThumb = await uploadToCloudinary(thumbnail.buffer, thumbnail.mimetype, 'media_thumbnails');
         media.thumbnailUrl = uploadedThumb.secure_url;
@@ -143,7 +149,6 @@ router.put('/:id',
   }
 );
 
-// 🗑️ Deletar mídia
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const media = await Media.findByIdAndDelete(req.params.id);
@@ -159,7 +164,6 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// 📋 Listar mídias
 router.get('/', async (req, res) => {
   try {
     const media = await Media.find().sort({ createdAt: -1 });
@@ -170,7 +174,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 📦 Download (Redireciona para o Cloudinary)
 router.get('/download/:id', async (req, res) => {
   try {
     const media = await Media.findById(req.params.id);
