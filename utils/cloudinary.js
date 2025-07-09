@@ -10,12 +10,15 @@ cloudinary.config({
 
 const uploadToCloudinary = (buffer, mimetype, folder) => {
   if (!buffer || buffer.length === 0) {
-    throw new Error('Arquivo de imagem vazio ou inválido');
+    throw new Error('Arquivo de mídia vazio ou inválido');
   }
+
+  const resourceType = mimetype.startsWith('audio/') ? 'video' : 'image';
+
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
-        resource_type: 'image',
+        resource_type: resourceType,
         folder
       },
       (error, result) => {
@@ -29,7 +32,7 @@ const uploadToCloudinary = (buffer, mimetype, folder) => {
 
 const deleteFromCloudinary = async (publicId) => {
   return cloudinary.uploader.destroy(publicId, {
-    resource_type: 'image'
+    resource_type: 'video' // ou 'image', depende do tipo que salvou
   });
 };
 
