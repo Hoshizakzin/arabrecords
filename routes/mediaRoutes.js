@@ -11,11 +11,15 @@ const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const imageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    const audioTypes = ['audio/mpeg'];
-    const isValid =
-      (file.fieldname === 'thumbnail' && imageTypes.includes(file.mimetype)) ||
-      (file.fieldname === 'file' && audioTypes.includes(file.mimetype));
-    cb(null, isValid);
+    const audioTypes = ['audio/mpeg', 'audio/mp3'];
+
+    if (file.fieldname === 'thumbnail' && imageTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else if (file.fieldname === 'file' && audioTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Arquivo inválido (${file.fieldname}): tipo ${file.mimetype}`));
+    }
   },
   limits: {
     fileSize: 100 * 1024 * 1024, // 100MB
@@ -38,8 +42,13 @@ router.post('/',
 
     try {
       const { title, artist, category, duration } = req.body;
-      const file = req.files?.file?.[0];
+      const file = req.files?.file?.[0] || req.files?.mediaFile?.[0];
       const thumbnail = req.files?.thumbnail?.[0];
+
+      if (thumbnail && !thumbnail.mimetype.startsWith('image/')) {
+        return res.status(400).json({ error: 'Arquivo de imagem inválido' });
+      }
+
 
       if (!title || !file) {
         return res.status(400).json({ error: 'Título e arquivo de mídia são obrigatórios' });
@@ -70,8 +79,7 @@ router.post('/',
       });
 
     } catch (err) {
-      console.error('❌ Erro ao enviar mídia:', err);
-      res.status(500).json({ error: err.message || 'Erro ao enviar mídia' });
+      res.status(500).json({ error: 'Erro interno ao enviar mídia', details: err.message });
     }
   }
 );
