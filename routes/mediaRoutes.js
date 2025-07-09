@@ -54,6 +54,8 @@ router.post('/',
         return res.status(400).json({ error: 'Título e arquivo de mídia são obrigatórios' });
       }
 
+      console.log('🧪 MIME do arquivo:', file.mimetype);
+      console.log('🧪 Tamanho do buffer:', file.buffer?.length);
       const uploadedFile = await uploadToCloudinary(file.buffer, file.mimetype, 'media_files');
       const uploadedThumb = thumbnail
         ? await uploadToCloudinary(thumbnail.buffer, thumbnail.mimetype, 'media_thumbnails')
@@ -79,7 +81,12 @@ router.post('/',
       });
 
     } catch (err) {
-      res.status(500).json({ error: 'Erro interno ao enviar mídia', details: err.message });
+      console.error('❌ Erro ao enviar mídia:', {
+        message: err.message,
+        stack: err.stack,
+        cloudinaryError: err.error || err.name || 'Sem detalhes'
+      });
+      res.status(500).json({ error: err.message || 'Erro ao enviar mídia' });
     }
   }
 );
