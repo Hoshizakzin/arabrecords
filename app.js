@@ -5,14 +5,13 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ Origem permitida: frontend local, produção (Vercel) e API no Render
+// ✅ Origem permitida: frontend local, produção (Vercel)
 const allowedOrigins = [
   'https://arabian-blog.vercel.app',
-  'https://arabrecords-api.onrender.com',
   'http://localhost:3000'
 ];
 
-// ✅ Middleware único de CORS
+// ✅ Middleware único de CORS — deve vir antes das rotas
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -25,11 +24,17 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
-// Middlewares básicos
+// ✅ Middlewares básicos
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Conexão com o MongoDB
+// ✅ Logging básico
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
+// ✅ Conexão com o MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -42,19 +47,13 @@ mongoose.connect(process.env.MONGODB_URI, {
   process.exit(1);
 });
 
-// Logging básico
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
-
 // ✅ Rotas principais
 app.use('/api/news', require('./routes/newsRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admins', require('./routes/adminRoutes'));
 
-// Health check (útil para Render)
+// ✅ Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok',
@@ -62,7 +61,18 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Inicialização do servidor
+// ✅ Captura de erros gerais (inclui CORS)
+app.use((err, req, res, next) => {
+  if (err.message?.includes('CORS')) {
+    console.warn('⚠️ Bloqueado por CORS:', err.message);
+    return res.status(403).json({ error: 'Acesso bloqueado por CORS' });
+  }
+
+  console.error('❌ Erro interno inesperado:', err);
+  res.status(500).json({ error: 'Erro interno no servidor' });
+});
+
+// ✅ Inicialização do servidor
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
