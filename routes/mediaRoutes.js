@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const axios = require('axios');
 const Media = require('../models/Media');
 const authMiddleware = require('../utils/auth');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
@@ -26,6 +27,7 @@ const upload = multer({
   }
 });
 
+// ✅ Criar nova mídia
 router.post('/',
   authMiddleware,
   upload.fields([
@@ -47,9 +49,6 @@ router.post('/',
         return res.status(400).json({ error: 'Título e arquivo de mídia são obrigatórios' });
       }
 
-      console.log('🧪 MIME do arquivo:', file.mimetype);
-      console.log('🧪 Tamanho do buffer:', file.buffer?.length);
-
       const uploadedFile = await uploadToCloudinary(file.buffer, file.mimetype, 'media_files');
 
       let uploadedThumb = null;
@@ -57,11 +56,6 @@ router.post('/',
         if (!thumbnail.buffer || !thumbnail.mimetype.startsWith('image/')) {
           return res.status(400).json({ error: 'Arquivo de imagem inválido' });
         }
-
-        console.log('🖼️ Enviando thumbnail:', {
-          mimetype: thumbnail.mimetype,
-          size: thumbnail.buffer?.length
-        });
 
         uploadedThumb = await uploadToCloudinary(thumbnail.buffer, thumbnail.mimetype, 'media_thumbnails');
       }
@@ -86,16 +80,13 @@ router.post('/',
       });
 
     } catch (err) {
-      console.error('❌ Erro ao enviar mídia:', {
-        message: err.message,
-        stack: err.stack,
-        cloudinaryError: err.error || err.name || 'Sem detalhes'
-      });
+      console.error('❌ Erro ao enviar mídia:', err);
       res.status(500).json({ error: err.message || 'Erro ao enviar mídia' });
     }
   }
 );
 
+// ✅ Atualizar mídia
 router.put('/:id',
   authMiddleware,
   upload.fields([
@@ -103,8 +94,6 @@ router.put('/:id',
     { name: 'thumbnail', maxCount: 1 }
   ]),
   async (req, res) => {
-    console.log('🛠️ Atualizando mídia:', req.params.id);
-
     try {
       const { title, artist, category, duration } = req.body;
       const file = req.files?.file?.[0];
@@ -149,6 +138,7 @@ router.put('/:id',
   }
 );
 
+// ✅ Deletar mídia
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const media = await Media.findByIdAndDelete(req.params.id);
@@ -164,6 +154,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// ✅ Listar todas as mídias
 router.get('/', async (req, res) => {
   try {
     const media = await Media.find().sort({ createdAt: -1 });
@@ -174,6 +165,7 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ✅ Rota de download — deve vir ANTES da rota /:id
 router.get('/download/:id', async (req, res) => {
   try {
     const media = await Media.findById(req.params.id);
@@ -181,10 +173,37 @@ router.get('/download/:id', async (req, res) => {
 
     await Media.findByIdAndUpdate(media._id, { $inc: { downloads: 1 } });
 
-    res.redirect(media.url);
+    const fileUrl = media.url;
+    const fileName = `${media.artist || 'Artista'} - ${media.title || 'Sem título'}.mp3`;
+
+    // 🔁 Pegar o conteúdo do Cloudinary
+    const response = await axios.get(fileUrl, { responseType: 'stream' });
+
+    // ✅ Definir cabeçalhos para forçar download com nome bonito
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'audio/mpeg');
+
+    // 🔽 Encaminhar o arquivo para o usuário
+    response.data.pipe(res);
+
   } catch (err) {
     console.error('❌ Erro no download:', err);
     res.status(500).json({ error: 'Erro ao realizar download' });
+  }
+});
+
+// ✅ Buscar uma única mídia por ID — DEIXE POR ÚLTIMO
+router.get('/:id', async (req, res) => {
+  try {
+    const media = await Media.findById(req.params.id);
+    if (!media) {
+      return res.status(404).json({ success: false, message: 'Mídia não encontrada' });
+    }
+
+    res.json(media);
+  } catch (err) {
+    console.error('❌ Erro ao buscar mídia por ID:', err);
+    res.status(500).json({ success: false, message: 'Erro ao buscar mídia' });
   }
 });
 

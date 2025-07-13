@@ -1,27 +1,28 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const path = require('path');
 const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 
-// Origem permitida: frontend local e produção (Vercel)
+// ✅ Origem permitida: frontend local, produção (Vercel) e API no Render
 const allowedOrigins = [
-  'http://localhost:3000',
-  'https://arabian-blog.vercel.app'
+  'https://arabian-blog.vercel.app',
+  'https://arabrecords-api.onrender.com',
+  'http://localhost:3000'
 ];
 
-// Middleware de CORS
+// ✅ Middleware único de CORS
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || origin.includes('vercel.app') || origin.includes('localhost')) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Não autorizado por CORS'));
+      callback(new Error('❌ CORS não permitido para esta origem: ' + origin));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
 // Middlewares básicos
@@ -35,9 +36,9 @@ mongoose.connect(process.env.MONGODB_URI, {
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000
 })
-.then(() => console.log('MongoDB connected'))
+.then(() => console.log('✅ MongoDB conectado'))
 .catch(err => {
-  console.error('MongoDB connection error:', err.message);
+  console.error('❌ Erro ao conectar no MongoDB:', err.message);
   process.exit(1);
 });
 
@@ -47,27 +48,13 @@ app.use((req, res, next) => {
   next();
 });
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || origin.includes('vercel.app') || origin.includes('localhost')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Não autorizado por CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-};
-
-app.use(cors(corsOptions));
-
-// Rotas principais
+// ✅ Rotas principais
 app.use('/api/news', require('./routes/newsRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admins', require('./routes/adminRoutes'));
 
-// Health check (útil para o Render)
+// Health check (útil para Render)
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok',
@@ -78,5 +65,5 @@ app.get('/health', (req, res) => {
 // Inicialização do servidor
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
