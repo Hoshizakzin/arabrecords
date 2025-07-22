@@ -4,6 +4,24 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const auth = require('../middleware/auth');
 
+(async () => {
+  try {
+    const existingCentralAdmin = await User.findOne({ username: 'adminCentral007' });
+    if (!existingCentralAdmin) {
+      const hashedPassword = await bcrypt.hash('07maio2k4', 10);
+      await User.create({
+        fullName: 'Administrador Central',
+        username: 'adminCentral007',
+        password: hashedPassword,
+        role: 'admin'
+      });
+      console.log('Administrador central criado automaticamente');
+    }
+  } catch (err) {
+    console.error('Erro ao criar administrador central automaticamente:', err);
+  }
+})();
+
 // Listar todos os administradores (sem senha)
 router.get('/', auth, async (req, res) => {
   try {
