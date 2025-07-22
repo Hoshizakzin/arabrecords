@@ -9,7 +9,7 @@ const app = express();
 // Origem permitida: frontend local e produção (Vercel)
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://arabian-blog.vercel.app'
+  'https://inteligenciamaluca.vercel.app/'
 ];
 
 // Middleware de CORS
